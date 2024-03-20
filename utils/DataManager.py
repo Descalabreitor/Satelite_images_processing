@@ -14,11 +14,15 @@ class DataManager:
             raise FileNotFoundError("Provided data directory does not exist")
         self.lr_dataset_name = lr_dataset_name
         self.hr_dataset_name = hr_dataset_name
-        self.data_points = self.get_data_points()
+        self.data_points = self.__get_data_points()
 
-    def get_data_points(self):
+
+    def __get_data_points(self):
         data_points_df = pd.read_csv(self.data_folder + "/metadata.csv", sep=",")
         return data_points_df
+
+    def get_metadata(self):
+        return self.data_points
 
     def get_random_data(self, n_samples=10, n_revisits=1):
         data_names = self.data_points['ID'].sample(n=n_samples)
@@ -48,7 +52,7 @@ class DataManager:
             images[i] = lr_images_package
         return images
 
-    def read_sat_image(self, folder, image_shape, n_revisits):
+    def __read_sat_image(self, folder, image_shape, n_revisits):
         images = torch.zeros(n_revisits, *image_shape)
         i = 0
         folder = folder + "L2A/"
@@ -58,11 +62,11 @@ class DataManager:
             if file_name.__contains__("_data"):
                 image = tifffile.imread(folder + file_name)
                 image_tensor = torch.from_numpy(self.transform_to_rgb(image))
-                images[i] = self.apply_padding(image_tensor, image_shape)
+                images[i] = self.__apply_padding(image_tensor, image_shape)
                 i += 1
         return images
 
-    def transform_to_rgb(self, sat_image):
+    def __transform_to_rgb(self, sat_image):
         blue_band = sat_image[:, :, 0]
         green_band = sat_image[:, :, 1]
         red_band = sat_image[:, :, 2]
@@ -73,7 +77,7 @@ class DataManager:
         rgb_image[:, :, 2] = blue_band
         return rgb_image
 
-    def apply_padding(self, image_tensor, image_shape):
+    def __apply_padding(self, image_tensor, image_shape):
         n, m = image_tensor.shape[:2]
         on, om = image_shape[:2]
         pad_n = on - n
