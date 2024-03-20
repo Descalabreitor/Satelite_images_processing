@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 import torch
 import torchvision.transforms as transforms
@@ -5,6 +7,7 @@ import PIL.Image as Image
 import tifffile
 import numpy as np
 import os
+
 
 class DataManager:
     def __init__(self, data_directory, lr_dataset_name, hr_dataset_name):
@@ -15,11 +18,6 @@ class DataManager:
         self.lr_dataset_name = lr_dataset_name
         self.hr_dataset_name = hr_dataset_name
         self.data_points = self.__get_data_points()
-
-
-    def __get_data_points(self):
-        data_points_df = pd.read_csv(self.data_folder + "/metadata.csv", sep=",")
-        return data_points_df
 
     def get_metadata(self):
         return self.data_points
@@ -51,6 +49,20 @@ class DataManager:
             lr_images_package.squeeze()
             images[i] = lr_images_package
         return images
+
+    def get_revisits_metada(self, image_id):
+        directory = self.data_folder + "/" + self.lr_dataset_name + "/" + image_id  + "/"
+        revisits_metadata = pd.DataFrame(columns=['cloud_cover', 'target_date', 'delta', 'area', 'datetime'])
+        for file in os.listdir(directory):
+            if file.endswith(".metadata"):
+                metadata = self.__read_metadata(directory + file)
+                print(metadata)
+                revisits_metadata = revisits_metadata.append(metadata, ignore_index=True)
+        return revisits_metadata
+
+    def __get_data_points(self):
+        data_points_df = pd.read_csv(self.data_folder + "/metadata.csv", sep=",")
+        return data_points_df
 
     def __read_sat_image(self, folder, image_shape, n_revisits):
         images = torch.zeros(n_revisits, *image_shape)
@@ -91,3 +103,7 @@ class DataManager:
         padded_image_tensor = torch.nn.functional.pad(image_tensor, (0, 0, pad_left, pad_right, pad_top, pad_bottom))
 
         return padded_image_tensor
+
+    def __read_metadata(self, directory):
+        with open(directory) as f:
+            return pd.Series(json.load(f))
