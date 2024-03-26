@@ -51,14 +51,13 @@ class DataManager:
         return images
 
     def get_revisits_metada(self, image_id):
-        directory = self.data_folder + "/" + self.lr_dataset_name + "/" + image_id  + "/"
-        revisits_metadata = pd.DataFrame(columns=['cloud_cover', 'target_date', 'delta', 'area', 'datetime'])
+        directory = self.data_folder + "/" + self.lr_dataset_name + "/" + image_id + "/" + "L2A" +"/"
+        revisits_metadata = []
         for file in os.listdir(directory):
             if file.endswith(".metadata"):
                 metadata = self.__read_metadata(directory + file)
-                print(metadata)
-                revisits_metadata = revisits_metadata.append(metadata, ignore_index=True)
-        return revisits_metadata
+                revisits_metadata.append(metadata)
+        return pd.DataFrame(revisits_metadata)
 
     def __get_data_points(self):
         data_points_df = pd.read_csv(self.data_folder + "/metadata.csv", sep=",")
