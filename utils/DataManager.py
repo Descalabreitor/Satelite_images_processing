@@ -17,13 +17,13 @@ class DataManager:
             raise FileNotFoundError("Provided data directory does not exist")
         self.lr_dataset_name = lr_dataset_name
         self.hr_dataset_name = hr_dataset_name
-        self.data_points = self.__get_data_points()
+        self.metadata = self.__read_metadata()
 
     def get_metadata(self):
-        return self.data_points
+        return self.metadata
 
     def get_random_data(self, n_samples=10, n_revisits=1):
-        data_names = self.data_points['ID'].sample(n=n_samples)
+        data_names = self.metadata['ID'].sample(n=n_samples)
         hr_images = self.get_hr_images(data_names)
         lr_images = self.get_lr_images(data_names, n_revisits)
         return hr_images, lr_images
@@ -44,43 +44,35 @@ class DataManager:
             images = torch.zeros(len(data_points), n_revisits, *image_shape)
 
         for i, data_point in enumerate(data_points):
-            directory = self.data_folder + "/" + self.lr_dataset_name + "/" + data_point + "/"
-            lr_images_package = self.read_sat_image(directory, image_shape=image_shape, n_revisits=n_revisits)
+            lr_images_package = self.__read_sat_image(data_point, image_shape=image_shape, n_revisits=n_revisits)
             lr_images_package.squeeze()
             images[i] = lr_images_package
         return images
 
-    def get_revisits_metada(self, image_id):
-        directory = self.data_folder + "/" + self.lr_dataset_name + "/" + image_id + "/" + "L2A" +"/"
-        revisits_metadata = []
-        for file in os.listdir(directory):
-            if file.endswith(".metadata"):
-                metadata = self.__read_metadata(directory + file)
-                revisits_metadata.append(metadata)
-        return pd.DataFrame(revisits_metadata)
+    def __read_metadata(self):
+        metadata = pd.read_csv(self.data_folder + "/metadata.csv", sep=",")
+        metadata = metadata[metadata["n"] < 9]
+        return metadata
 
-    def __get_data_points(self):
-        data_points_df = pd.read_csv(self.data_folder + "/metadata.csv", sep=",")
-        return data_points_df
-
-    def __read_sat_image(self, folder, image_shape, n_revisits):
+    def __read_sat_image(self, data_point, image_shape, n_revisits):
         images = torch.zeros(n_revisits, *image_shape)
         i = 0
-        folder = folder + "L2A/"
-        for file_name in os.listdir(folder):
-            if i >= n_revisits:
-                break
-            if file_name.__contains__("_data"):
-                image = tifffile.imread(folder + file_name)
-                image_tensor = torch.from_numpy(self.transform_to_rgb(image))
-                images[i] = self.__apply_padding(image_tensor, image_shape)
-                i += 1
+        directory = self.data_folder + "/" + self.lr_dataset_name + "/" + data_point + "/" + "L2A/"
+        best_revisits = self.get_best_revisits_id(data_point, n_revisits)
+
+        for revisit in best_revisits:
+            file_name = directory + data_point + "-" + str(revisit) + "-L2A_data.tiff"
+            image = tifffile.imread(directory + file_name)
+            image_tensor = torch.from_numpy(self.__transform_to_rgb(image))
+            images[i] = self.__apply_padding(image_tensor, image_shape)
+            i += 1
+
         return images
 
     def __transform_to_rgb(self, sat_image):
-        blue_band = sat_image[:, :, 0]
-        green_band = sat_image[:, :, 1]
-        red_band = sat_image[:, :, 2]
+        blue_band = sat_image[:, :, 1]
+        green_band = sat_image[:, :, 2]
+        red_band = sat_image[:, :, 3]
 
         rgb_image = np.zeros((sat_image.shape[0], sat_image.shape[1], 3))
         rgb_image[:, :, 0] = red_band
@@ -103,6 +95,7 @@ class DataManager:
 
         return padded_image_tensor
 
-    def __read_metadata(self, directory):
-        with open(directory) as f:
-            return pd.Series(json.load(f))
+    def get_best_revisits_id(self, data_point, n_revisits):
+        data_point_metadata = self.metadata[self.metadata['ID'] == data_point]
+        sorted_revisits = data_point_metadata.sort_values(by = ['cloud_cover'])
+        return list(sorted_revisits['n'])[:n_revisits]
