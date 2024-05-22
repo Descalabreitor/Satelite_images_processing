@@ -15,8 +15,8 @@ def read_rgb_bands(sat_image):
     return rgb_image
 
 
-def apply_padding(image_tensor, image_shape):
-    n, m = image_tensor.shape[:2]
+def apply_padding(image, image_shape):
+    n, m = image.shape[:2]
     on, om = image_shape[:2]
     pad_n = on - n
     pad_m = om - m
@@ -26,22 +26,12 @@ def apply_padding(image_tensor, image_shape):
     pad_left = pad_m // 2
     pad_right = pad_m - pad_left
 
+    image_tensor = torch.from_numpy(image)
     padded_image_tensor = torch.nn.functional.pad(image_tensor, (0, 0, pad_left, pad_right, pad_top, pad_bottom))
 
-    return padded_image_tensor
-
-
-def trim(image_tensor, objective_shape):
-    objective_width, objective_height = objective_shape
-    width, height = image_tensor.shape[:2]
-
-    x_cut = int((width - objective_width) / 2)
-    y_cut = int((height - objective_height) / 2)
-
-    return functional.crop(image_tensor, x_cut, y_cut, y_cut, x_cut)
+    return padded_image_tensor.numpy()
 
 
 def downscale(image_tensor, objective_shape):
     downscaled_image = functional.resize(image_tensor, objective_shape)
     return downscaled_image
-

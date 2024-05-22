@@ -1,20 +1,20 @@
-import torch
-import torchvision.transforms as transforms
+import numpy as np
 import PIL.Image as Image
 import tifffile
 import os
 
-
 from utils.MetadataOperator import MetadataOperator
 from utils import ImageOperations
 
+
 class SatDataManager:
-    def __init__(self, data_directory, lr_dataset_name, hr_dataset_name):
+    def __init__(self, data_directory, lr_dataset_name, hr_dataset_name, lr_satelite="L2A"):
         if os.path.exists(data_directory):
             self.data_folder = data_directory
         else:
             raise FileNotFoundError("Provided data directory does not exist")
         self.lr_dataset_name = lr_dataset_name
+        self.lr_satelite = lr_satelite
         self.hr_dataset_name = hr_dataset_name
         self.metadataOperator = MetadataOperator(data_directory)
 
@@ -32,33 +32,21 @@ class SatDataManager:
         for data_point in data_points:
             directory = self.data_folder + "/" + self.hr_dataset_name + "/" + data_point + ".png"
             images.append(Image.open(directory))
-        images_tensor = torch.stack([transforms.ToTensor()(img) for img in images])
-        images_tensor = images_tensor.permute(0, 2, 3, 1)
-        return images_tensor
-
-    def read_lr_images(self, data_points, n_revisits=1, image_shape=(164, 164, 3)):
-        if n_revisits == 1:
-            images = torch.zeros(len(data_points), *image_shape)
-        else:
-            images = torch.zeros(len(data_points), n_revisits, *image_shape)
-
-        for i, data_point in enumerate(data_points):
-            lr_images_package = self.__read_sat_image(data_point, image_shape=image_shape, n_revisits=n_revisits)
-            lr_images_package.squeeze()
-            images[i] = lr_images_package
         return images
 
+    def read_lr_images(self, data_point, n_revisits=1, image_shape=(164, 164, 3)):
+        lr_images_package = self.__read_sat_image(data_point, image_shape=image_shape, n_revisits=n_revisits)
+        return lr_images_package
+
     def __read_sat_image(self, data_point, image_shape, n_revisits):
-        images = torch.zeros(n_revisits, *image_shape)
-        i = 0
-        directory = self.data_folder + "/" + self.lr_dataset_name + "/" + data_point + "/" + "L2A/"
+        images = []
+        directory = self.data_folder + "/" + self.lr_dataset_name + "_" + self.lr_satelite + "/" + data_point + "/" + self.lr_satelite + "/"
         best_revisits = self.metadataOperator.get_best_revisits_id(data_point, n_revisits)
 
         for revisit in best_revisits:
             file_name = directory + data_point + "-" + str(revisit) + "-L2A_data.tiff"
             image = tifffile.imread(directory + file_name)
-            image_tensor = torch.from_numpy(ImageOperations.read_rgb_bands(image))
-            images[i] = ImageOperations.apply_padding(image_tensor, image_shape)
-            i += 1
-
+            image = ImageOperations.read_rgb_bands(image)
+            #images.append(ImageOperations.apply_padding(image, image_shape))
+            images.append(image)
         return images
